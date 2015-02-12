@@ -137,12 +137,14 @@ class FuseMount(CephFSMount):
             # abort the fuse mount, killing all hung processes
             self.client_remote.run(
                 args=[
-                    "find", "/sys/fs/fuse/connections", "-name", "abort",
-                    "-exec", "bash", "-c", "echo 1 > {}", "\;"
+                    "sudo", "find", "/sys/fs/fuse/connections", "-name", "abort",
+                    "-exec", "bash", "-c", "echo 1 > {}", ";"
                 ]
             )
-            # make sure its unmounted
-            if self.is_mounted():
+
+            try:
+                # make sure its unmounted
+                stderr = StringIO()
                 self.client_remote.run(
                     args=[
                         'sudo',
@@ -151,7 +153,16 @@ class FuseMount(CephFSMount):
                         '-f',
                         self.mountpoint,
                     ],
+                    stderr=stderr
                 )
+            except CommandFailedError:
+                if "not found" in stderr.getvalue():
+                    # Missing mount point, so we are unmounted already, yay.
+                    pass
+                else:
+                    raise
+
+        assert not self.is_mounted()
 
     def umount_wait(self, force=False):
         """
@@ -203,8 +214,8 @@ class FuseMount(CephFSMount):
         """
         super(FuseMount, self).teardown()
 
-        if self.is_mounted():
-            self.umount()
+        self.umount()
+
         if not self.fuse_daemon.finished:
             self.fuse_daemon.stdin.close()
             try:
