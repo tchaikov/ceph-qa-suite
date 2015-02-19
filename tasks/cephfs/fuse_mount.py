@@ -209,15 +209,25 @@ class FuseMount(CephFSMount):
 
     def umount_wait(self, force=False):
         """
-        :param force: Complete even if the MDS is offline
+        :param force: Complete cleanly even if the MDS is offline
         """
-        self.umount()
         if force:
+            # When we expect to be forcing, kill the ceph-fuse process directly.
+            # This should avoid hitting the more aggressive fallback killing
+            # in umount() which can affect other mounts too.
             self.fuse_daemon.stdin.close()
+            try:
+                self.fuse_daemon.wait()
+            except CommandFailedError:
+                pass
+
+        self.umount()
+
         try:
             self.fuse_daemon.wait()
         except CommandFailedError:
             pass
+
         self.cleanup()
 
     def cleanup(self):
