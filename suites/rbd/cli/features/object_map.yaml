@@ -1,0 +1,7 @@
+overrides:
+  ceph:
+    conf:
+      client:
+        rbd default format: 2
+        rbd exclusive lock: true
+        rbd object map: true
