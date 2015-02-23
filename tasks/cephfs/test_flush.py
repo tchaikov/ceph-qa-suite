@@ -44,14 +44,40 @@ class TestFlush(CephFSTestCase):
 
         # ...and the journal is truncated to just a single subtreemap from the
         # newly created segment
-        self.assertEqual(self.fs.journal_tool(["event", "get", "summary"]),
-                         dedent(
-                             """
-                             Events by type:
-                               SUBTREEMAP: 1
-                             Errors: 0
-                             """
-                         ).strip())
+        summary_output = self.fs.journal_tool(["event", "get", "summary"])
+        try:
+            self.assertEqual(summary_output,
+                             dedent(
+                                 """
+                                 Events by type:
+                                   SUBTREEMAP: 1
+                                 Errors: 0
+                                 """
+                             ).strip())
+        except AssertionError:
+            # In some states, flushing the journal will leave you
+            # an extra event from locks a client held.   This is
+            # correct behaviour: the MDS is flushing the journal,
+            # it's just that new events are getting added too.
+            # In this case, we should nevertheless see a fully
+            # empty journal after a second flush.
+            self.assertEqual(summary_output,
+                             dedent(
+                                 """
+                                 Events by type:
+                                   SUBTREEMAP: 1
+                                   UPDATE: 1
+                                 Errors: 0
+                                 """
+                             ).strip())
+            self.assertEqual(self.fs.journal_tool(["event", "get", "summary"]),
+                             dedent(
+                                 """
+                                 Events by type:
+                                   SUBTREEMAP: 1
+                                 Errors: 0
+                                 """
+                             ).strip())
 
         # Now for deletion!
         # We will count the RADOS deletions and MDS file purges, to verify that
