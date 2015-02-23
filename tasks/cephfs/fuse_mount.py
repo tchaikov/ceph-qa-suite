@@ -216,15 +216,16 @@ class FuseMount(CephFSMount):
             # This should avoid hitting the more aggressive fallback killing
             # in umount() which can affect other mounts too.
             self.fuse_daemon.stdin.close()
-            try:
-                self.fuse_daemon.wait()
-            except CommandFailedError:
-                pass
+
+            # However, we will still hit the aggressive wait if there is an ongoing
+            # mount -o remount (especially if the remount is stuck because MDSs
+            # are unavailable)
 
         self.umount()
 
         try:
-            self.fuse_daemon.wait()
+            if self.fuse_daemon:
+                self.fuse_daemon.wait()
         except CommandFailedError:
             pass
 
@@ -236,13 +237,21 @@ class FuseMount(CephFSMount):
 
         Prerequisite: the client is not mounted.
         """
-        self.client_remote.run(
-            args=[
-                'rmdir',
-                '--',
-                self.mountpoint,
-            ],
-        )
+        stderr = StringIO()
+        try:
+            self.client_remote.run(
+                args=[
+                    'rmdir',
+                    '--',
+                    self.mountpoint,
+                ],
+                stderr=stderr
+            )
+        except CommandFailedError:
+            if "No such file or directory" in stderr.getvalue():
+                pass
+            else:
+                raise
 
     def kill(self):
         """

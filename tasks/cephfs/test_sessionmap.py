@@ -1,13 +1,15 @@
-import contextlib
+
 import json
 import logging
-from tasks.cephfs.cephfs_test_case import CephFSTestCase, run_tests
-from tasks.cephfs.filesystem import Filesystem
+from tasks.cephfs.cephfs_test_case import CephFSTestCase
 
 log = logging.getLogger(__name__)
 
 
 class TestSessionMap(CephFSTestCase):
+    CLIENTS_REQUIRED = 2
+    MDSS_REQUIRED = 2
+
     def test_version_splitting(self):
         """
         That when many sessions are updated, they are correctly
@@ -64,31 +66,3 @@ class TestSessionMap(CephFSTestCase):
         # OMAP inline rather than simply saving up the modifications.
         # The number of writes is two, because the header (sessionmap version) update and KV write both count.
         self.assertEqual(get_omap_wrs() - initial_omap_wrs, 2)
-
-
-@contextlib.contextmanager
-def task(ctx, config):
-    fs = Filesystem(ctx)
-
-    # Pick out the clients we will use from the configuration
-    # =======================================================
-    if len(ctx.mounts) < 2:
-        raise RuntimeError("Need at least two clients")
-    mount_a = ctx.mounts.values()[0]
-    mount_b = ctx.mounts.values()[1]
-
-    # Stash references on ctx so that we can easily debug in interactive mode
-    # =======================================================================
-    ctx.filesystem = fs
-    ctx.mount_a = mount_a
-    ctx.mount_b = mount_b
-
-    run_tests(ctx, config, TestSessionMap, {
-        'fs': fs,
-        'mount_a': mount_a,
-        'mount_b': mount_b
-    })
-
-    # Continue to any downstream tasks
-    # ================================
-    yield

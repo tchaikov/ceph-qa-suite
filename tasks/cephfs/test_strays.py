@@ -1,15 +1,16 @@
-import contextlib
+
 import logging
 from textwrap import dedent
 import time
 import gevent
-from tasks.cephfs.cephfs_test_case import run_tests, CephFSTestCase
-from tasks.cephfs.filesystem import Filesystem
+from tasks.cephfs.cephfs_test_case import CephFSTestCase
 
 log = logging.getLogger(__name__)
 
 
 class TestStrays(CephFSTestCase):
+    MDSS_REQUIRED = 2
+
     OPS_THROTTLE = 1
     FILES_THROTTLE = 2
 
@@ -462,28 +463,3 @@ class TestStrays(CephFSTestCase):
 
         # file_a's data should still exist
         self.assertTrue(self.fs.data_objects_present(file_a_ino, size_mb * 1024 * 1024))
-
-
-@contextlib.contextmanager
-def task(ctx, config):
-    fs = Filesystem(ctx)
-
-    # Pick out the clients we will use from the configuration
-    # =======================================================
-    if len(ctx.mounts) < 1:
-        raise RuntimeError("Need at least one client")
-    mount = ctx.mounts.values()[0]
-
-    # Stash references on ctx so that we can easily debug in interactive mode
-    # =======================================================================
-    ctx.filesystem = fs
-    ctx.mount = mount
-
-    run_tests(ctx, config, TestStrays, {
-        'fs': fs,
-        'mount_a': mount,
-    })
-
-    # Continue to any downstream tasks
-    # ================================
-    yield
